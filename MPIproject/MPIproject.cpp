@@ -1,14 +1,21 @@
 // MPIproject.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
-#include <iostream>
 #include "mpi.h"
+#include <stdio.h>
+#include <time.h>
+#include <iostream>
 
 using namespace std;
+
 
 #define SEND_PROCESS 0
 #define RECV_PROCESS 1
 #define TAG 0
+
+double GetCurrentTime() {
+    return clock();
+}
 
 int SendProcess()
 {
@@ -22,19 +29,28 @@ int SendProcess()
     return 0;
 }
 
-int RecvProcess()
+int RecvProcess() 
 {
     cout << "Start receiving!" << endl;
     MPI_Status status;
-
+    
     //get length
     MPI_Probe(SEND_PROCESS, TAG, MPI_COMM_WORLD, &status);
     int size = -1;
     MPI_Get_count(&status, MPI_CHAR, &size);
     char* data = (char*) malloc(size);
+    //here we've already known that Send is started
 
+    
+    double start = GetCurrentTime();
     //get message
     MPI_Recv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+
+    double end = GetCurrentTime();
+    double dif = end - start;
+
+
+    cout << "Time spent on the send operation in ticks: " << start << endl;
     cout << data << endl;
 
     free(data);
