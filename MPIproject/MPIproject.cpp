@@ -5,16 +5,21 @@
 #include <stdio.h>
 #include <time.h>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 
 
 #define SEND_PROCESS 0
 #define RECV_PROCESS 1
 #define TAG 0
+#define OP_LONG 10000000
 
-double GetCurrentTime() {
-    return clock();
+milliseconds GetCurrentTime() {
+    return duration_cast<milliseconds>(
+        system_clock::now().time_since_epoch()
+    );
 }
 
 int SendProcess()
@@ -24,7 +29,11 @@ int SendProcess()
     char* data = (char*) "Hello, I'm sending process!";
     int size = strlen(data) + 1;
 
-    MPI_Send(data, size, MPI_CHAR, RECV_PROCESS, TAG, MPI_COMM_WORLD);
+
+    for (int i = 0; i < OP_LONG; i++) {
+        MPI_Send(data, size, MPI_CHAR, RECV_PROCESS, TAG, MPI_COMM_WORLD);
+    }
+    
 
     return 0;
 }
@@ -41,16 +50,18 @@ int RecvProcess()
     char* data = (char*) malloc(size);
     //here we've already known that Send is started
 
-    
-    double start = GetCurrentTime();
+    milliseconds start = GetCurrentTime();
     //get message
-    MPI_Recv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+    for (int i = 0; i < OP_LONG; i++) {
+        MPI_Recv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+    }
 
-    double end = GetCurrentTime();
-    double dif = end - start;
+    milliseconds end = GetCurrentTime();
+    milliseconds dif = end - start;
 
+    double realDif = (double)dif.count() / (double)OP_LONG;
 
-    cout << "Time spent on the send operation in ticks: " << start << endl;
+    cout << "Time spent on the send operation (ms): " << realDif << endl;
     cout << data << endl;
 
     free(data);
