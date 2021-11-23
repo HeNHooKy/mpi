@@ -29,11 +29,18 @@ int SendProcess()
     char* data = (char*) "Hello, I'm sending process!";
     int size = strlen(data) + 1;
 
+    double start = MPI_Wtime();
 
     for (int i = 0; i < OP_LONG; i++) {
         MPI_Send(data, size, MPI_CHAR, RECV_PROCESS, TAG, MPI_COMM_WORLD);
     }
     
+    double end = MPI_Wtime();
+    double dif = end - start;
+
+    double realDif = dif *1000000 /(double)OP_LONG;
+
+    cout << "Time spent on the send operation (ms): " << realDif << endl;
 
     return 0;
 }
@@ -50,18 +57,13 @@ int RecvProcess()
     char* data = (char*) malloc(size);
     //here we've already known that Send is started
 
-    milliseconds start = GetCurrentTime();
+    
     //get message
     for (int i = 0; i < OP_LONG; i++) {
         MPI_Recv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
     }
 
-    milliseconds end = GetCurrentTime();
-    milliseconds dif = end - start;
-
-    double realDif = (double)dif.count() / (double)OP_LONG;
-
-    cout << "Time spent on the send operation (ms): " << realDif << endl;
+   
     cout << data << endl;
 
     free(data);
