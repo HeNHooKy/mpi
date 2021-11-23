@@ -8,19 +8,13 @@
 #include <chrono>
 
 using namespace std;
-using namespace std::chrono;
 
 
 #define SEND_PROCESS 0
 #define RECV_PROCESS 1
 #define TAG 0
-#define OP_LONG 10000000
+#define OP_LONG 100000
 
-milliseconds GetCurrentTime() {
-    return duration_cast<milliseconds>(
-        system_clock::now().time_since_epoch()
-    );
-}
 
 int SendProcess()
 {
@@ -29,11 +23,24 @@ int SendProcess()
     char* data = (char*) "Hello, I'm sending process!";
     int size = strlen(data) + 1;
 
+    double start = MPI_Wtime();
 
+    MPI_Request* request = (MPI_Request*) malloc(sizeof(MPI_Request) * OP_LONG);
     for (int i = 0; i < OP_LONG; i++) {
-        MPI_Send(data, size, MPI_CHAR, RECV_PROCESS, TAG, MPI_COMM_WORLD);
+        
+        MPI_Isend(data, size, MPI_CHAR, RECV_PROCESS, TAG, MPI_COMM_WORLD, &request[i]);
     }
+
+    MPI_Status* statuses = (MPI_Status*)malloc(sizeof(MPI_Status) * OP_LONG);
+
+    MPI_Waitall(OP_LONG, request, statuses);
     
+    double end = MPI_Wtime();
+    double dif = end - start;
+
+    double realDif = (double)dif * 1000 / (double)OP_LONG;
+
+    cout << "Time spent on the send operation (ms): " << realDif << endl;
 
     return 0;
 }
@@ -50,18 +57,17 @@ int RecvProcess()
     char* data = (char*) malloc(size);
     //here we've already known that Send is started
 
-    milliseconds start = GetCurrentTime();
+    
     //get message
     for (int i = 0; i < OP_LONG; i++) {
-        MPI_Recv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+        MPI_Request request;
+        MPI_Irecv(data, size, MPI_CHAR, SEND_PROCESS, TAG, MPI_COMM_WORLD, &request);
+
+        MPI_Status status;
+        MPI_Wait(&request, &status);
     }
 
-    milliseconds end = GetCurrentTime();
-    milliseconds dif = end - start;
-
-    double realDif = (double)dif.count() / (double)OP_LONG;
-
-    cout << "Time spent on the send operation (ms): " << realDif << endl;
+    
     cout << data << endl;
 
     free(data);
