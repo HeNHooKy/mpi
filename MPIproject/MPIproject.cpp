@@ -86,7 +86,7 @@ int main(int argc, char** argv)
 
     if (process == root) {
         double realDif = (double)dif * 1000 / (double)OP_LONG;
-        cout << "Time spent to the MPI_Gather operation (ms): " << realDif << endl;
+        cout << "Time spent for MPI_Gather operation (ms): " << realDif << endl;
     }
     
     
@@ -99,16 +99,16 @@ int main(int argc, char** argv)
 
     if (process == root) {
         double realDif = (double)dif * 1000 / (double)OP_LONG;
-        cout << "Time spent to the My_Gather operation (ms): " << realDif << endl;
+        cout << "Time spent for My_Gather operation (ms): " << realDif << endl;
     }
 
-    /*
+    
     if (process == ROOT_PROCESS) {
         for (int i = 0; i < 2 * world_size; i++) {
             cout << rbuf[i] << endl;
         }
     }
-    */
+    
     
 
     return MPI_Finalize();;
