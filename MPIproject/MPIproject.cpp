@@ -11,55 +11,116 @@ using namespace std;
 
 #define TAG 0
 #define ROOT_PROCESS 0
-#define OP_LONG 10000
+#define OP_LONG 1000
 
-void My_Gather(int* sendarray, int sendcount, MPI_Datatype sendtype, int* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm) {
-    int process = -1;
-    MPI_Comm_rank(comm, &process);
-
-    if (process == -1) {
-        throw "error: process doesn't exist";
-    }
-
-    if (process != root) {
-        MPI_Send(sendarray, sendcount, sendtype, root, TAG, comm);
-    }
-
-
-    if (process == root) {
-
-        int comm_size = -1;
-        MPI_Comm_size(comm, &comm_size);
-
-        if (process == -1) {
-            throw "error: can't find world size";
+int notEmpty(int* a, int n) {
+    int real = 0;
+    for (int i = 0; i < n; i++) {
+        if (a[i] != -1) {
+            real++;
         }
+    }
 
-        
+    return real;
+}
 
-        for (int i = 0; i < comm_size; i++) {
-            if (i != root) {
-                MPI_Status status;
-                int* loc_rbuf = (int*)malloc(recvcount * sizeof(int));
-                MPI_Recv(loc_rbuf, recvcount, recvtype, i, TAG, comm, &status);
-
-                for (int j = 0; j < recvcount; j++) {
-                    int k = i * recvcount + j;
-                    recvbuf[k] = loc_rbuf[j];
-;               }
-
-                //MPI_Probe(i, TAG, comm, &status);
-            }
-            else {
-                for (int j = 0; j < recvcount; j++) {
-                    int k = i * recvcount + j;
-                    recvbuf[k] = sendarray[j];
-                }
-            }
+void removeEmpty(int* a, int n, int real, int* new_a) {
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        if (a[i] != -1) {
+            new_a[k++] = a[i];
         }
     }
 }
 
+bool isSimple(int n) {
+    bool answer = true;
+
+    if (n < 2) {
+        answer = false;
+    }
+
+    for (int i = 2; i < n; i++) {
+        if (n % i == 0) {
+            answer = false;
+            break;
+        }
+    }
+
+    return answer;
+}
+
+void print(int* a, int n) {
+    for (int i = 0; i < n; i++) {
+        cout << a[i] << " ";
+    }
+    cout << endl;
+}
+
+void createComms(MPI_Comm * decartCircle, MPI_Comm * masterSlave) {
+
+    MPI_Group worldGroup;
+    MPI_Group decartGroup;
+    MPI_Group masterSlaveGroup;
+
+    MPI_Comm_group(MPI_COMM_WORLD, &worldGroup);
+
+    int world_size = -1;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int* decartRanks = (int*)malloc(sizeof(int) * world_size);
+    int* masterSlaveRanks = (int*)malloc(sizeof(int) * world_size);
+
+    for (int i = 0; i < world_size; i++) {
+        decartRanks[i] = -1;
+        masterSlaveRanks[i] = -1;
+    }
+
+    for (int i = 0; i < world_size; i++) {
+        if (isSimple(i)) {
+            decartRanks[i] = i;
+        }
+        else {
+            masterSlaveRanks[i] = i;
+        }
+    }
+
+    
+
+
+    int ms_n_real = notEmpty(masterSlaveRanks, world_size);
+    int* masterSlaveRealRanks = (int*)malloc(sizeof(int) * ms_n_real);
+    
+
+    int d_n_real = notEmpty(decartRanks, world_size);
+    int* decartRealRanks = (int*)malloc(sizeof(int) * d_n_real);
+
+    removeEmpty(masterSlaveRanks, world_size, ms_n_real, masterSlaveRealRanks);
+    removeEmpty(decartRanks, world_size, d_n_real, decartRealRanks);
+    
+
+    MPI_Group_incl(worldGroup, ms_n_real, masterSlaveRealRanks, &masterSlaveGroup);
+    MPI_Group_incl(worldGroup, d_n_real, decartRealRanks, &decartGroup);
+
+
+   
+
+    if (masterSlaveGroup == MPI_GROUP_EMPTY || decartGroup == MPI_GROUP_EMPTY)
+    {
+        printf("A group created is empty.\n");
+        MPI_Finalize();
+    }
+
+    MPI_Comm_create(MPI_COMM_WORLD, decartGroup, decartCircle);
+    MPI_Comm_create(MPI_COMM_WORLD, masterSlaveGroup, masterSlave);
+
+    int groupSize;
+    MPI_Comm_size(*decartCircle, &groupSize); //WHY decartCircle's NULL?
+    cout << "count of procees in decart: " << groupSize << endl;
+
+    //MPI_Comm_size(*masterSlave, &groupSize);
+    cout << "count of process in masterSlave: " << groupSize << endl;
+}
 
 int main(int argc, char** argv)
 {
@@ -72,45 +133,21 @@ int main(int argc, char** argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &process);
 
     cout << "World size: " << world_size << ", process number: " <<  process << endl;
-    int sendarray[2]{ process, -1 };
-    int root = ROOT_PROCESS, * rbuf;
-    rbuf = (int*)malloc(world_size * 2 * sizeof(int));
+
+    MPI_Comm decartCircle;
+    MPI_Comm masterSlave;
+
+    createComms(&decartCircle, &masterSlave);
+
 
     
-    double start = MPI_Wtime();
-    for (int i = 0; i < OP_LONG; i++) {
-        MPI_Gather(sendarray, 2, MPI_INT, rbuf, 2, MPI_INT, root, MPI_COMM_WORLD);
-    }
-    double end = MPI_Wtime();
-    double dif = end - start;
 
-    if (process == root) {
-        double realDif = (double)dif * 1000 / (double)OP_LONG;
-        cout << "Time spent for MPI_Gather operation (ms): " << realDif << endl;
-    }
-    
-    
-    start = MPI_Wtime();
-    for (int i = 0; i < OP_LONG; i++) {
-        My_Gather(sendarray, 2, MPI_INT, rbuf, 2, MPI_INT, root, MPI_COMM_WORLD);
-    }
-    end = MPI_Wtime();
-    dif = end - start;
-
-    if (process == root) {
-        double realDif = (double)dif * 1000 / (double)OP_LONG;
-        cout << "Time spent for My_Gather operation (ms): " << realDif << endl;
-    }
 
     
-    if (process == ROOT_PROCESS) {
-        for (int i = 0; i < 2 * world_size; i++) {
-            cout << rbuf[i] << endl;
-        }
-    }
-    
+
     
 
-    return MPI_Finalize();;
+    
+    return MPI_Finalize();
 }
 
